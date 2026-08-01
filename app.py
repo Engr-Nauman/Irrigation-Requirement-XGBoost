@@ -1,3 +1,6 @@
+```python
+# app.py
+
 import streamlit as st
 import pandas as pd
 import joblib
@@ -13,19 +16,23 @@ st.set_page_config(
 )
 
 # --- Load Model Artifacts ---
+# Define the directory where artifacts are saved
+model_dir = 'model_artifacts'
+
 @st.cache_resource
 def load_model_artifacts():
     try:
-        model = joblib.load('irrigation_model.joblib')
-        labenc = joblib.load('label_encoder.joblib')
-        ohe = joblib.load('one_hot_encoder.joblib')
-        feature_columns = joblib.load('feature_columns.joblib')
-        return model, labenc, ohe, feature_columns
+        model = joblib.load(os.path.join(model_dir, 'xgboost_model.joblib'))
+        le = joblib.load(os.path.join(model_dir, 'label_encoder.joblib'))
+        encoder = joblib.load(os.path.join(model_dir, 'one_hot_encoder.joblib'))
+        feature_columns = joblib.load(os.path.join(model_dir, 'feature_columns.joblib'))
+        categorical_features_for_ohe = joblib.load(os.path.join(model_dir, 'categorical_features_for_ohe.joblib'))
+        return model, le, encoder, feature_columns, categorical_features_for_ohe
     except FileNotFoundError:
-        st.error("Model artifacts not found. Please ensure 'model_artifacts' directory and its contents are in the same directory as this app.")
+        st.error(f"Model artifacts not found. Please ensure 'model_artifacts' directory and its contents are in the same directory as this app. Looking for: {os.listdir(model_dir) if os.path.exists(model_dir) else 'directory not found'}")
         st.stop()
 
-model, labelenc, encoder, feature_columns = load_model_artifacts()
+model, le, encoder, feature_columns, categorical_features_for_ohe = load_model_artifacts()
 
 # --- Title and Description ---
 st.title("Irrigation Need Prediction 💧")
@@ -34,10 +41,6 @@ st.markdown("--- ")
 
 # --- Input Features ---
 st.header("Environmental & Soil Parameters")
-
-# Numerical Inputs
-# You might want to get min/max/default values from your training data for better slider ranges
-# For now, using reasonable defaults
 
 col1, col2 = st.columns(2)
 with col1:
@@ -99,30 +102,37 @@ input_df = pd.DataFrame(input_data)
 
 # --- Preprocessing Input Data ---
 # Separate numerical and categorical columns from the input
-numerical_cols = input_df.select_dtypes(include=np.number).columns
-categorical_cols = input_df.select_dtypes(include='object').columns
+numerical_cols_input = input_df.select_dtypes(include=np.number).columns
+# Use the saved list of categorical features for OHE
+categorical_cols_to_encode = [col for col in categorical_features_for_ohe if col in input_df.columns]
 
 # Apply OneHotEncoder to categorical features
-encoded_features_input = encoder.transform(input_df[categorical_cols])
-encoded_df_input = pd.DataFrame(encoded_features_input, columns=encoder.get_feature_names_out(categorical_cols))
+encoded_features_input = encoder.transform(input_df[categorical_cols_to_encode])
+encoded_df_input = pd.DataFrame(encoded_features_input, columns=encoder.get_feature_names_out(categorical_cols_to_encode))
 
 # Drop original categorical columns and concatenate with encoded ones
-input_processed = input_df[numerical_cols].reset_index(drop=True)
+input_processed = input_df[numerical_cols_input].reset_index(drop=True)
 input_processed = pd.concat([input_processed, encoded_df_input], axis=1)
 
 # Ensure all columns from training are present and in the correct order
 # Add missing columns with 0, drop extra columns
-final_input = pd.DataFrame(columns=feature_columns)
-final_input = pd.concat([final_input, input_processed], ignore_index=True)
-final_input = final_input.fillna(0) # Fill any new columns with 0
-final_input = final_input[feature_columns] # Ensure order and drop extra columns
+final_input = pd.DataFrame(0, index=[0], columns=feature_columns) # Initialize with all expected columns and 0s
+for col in input_processed.columns:
+    if col in final_input.columns:
+        final_input[col] = input_processed[col].iloc[0] # Populate with user input
 
 
 # --- Prediction Button ---
 st.markdown("--- ")
 if st.button("Predict Irrigation Need 🌱"): 
     prediction_encoded = model.predict(final_input)
-    prediction_label = labelenc.inverse_transform(prediction_encoded)
+    prediction_label = le.inverse_transform(prediction_encoded)
     
     st.success(f"Predicted Irrigation Need: **{prediction_label[0]}**")
     st.balloons()
+
+st.markdown("---")
+st.caption("Developed by Your Name/Team")
+
+
+```
