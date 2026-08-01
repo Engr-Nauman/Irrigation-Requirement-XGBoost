@@ -2,106 +2,106 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import os
 
-# --- 1. Load Model and Encoders ---
-model_dir = 'model_artifacts'
+# Set Page Config
+st.set_page_config(
+    page_title="Irrigation Need Predictor",
+    page_icon="🌾",
+    layout="wide"
+)
 
+# Load the trained Model and Label Encoder using Joblib
 @st.cache_resource
-def load_artifacts():
-    model = joblib.load(os.path.join(model_dir, 'xgboost_model.joblib'))
-    label_encoder = joblib.load(os.path.join(model_dir, 'label_encoder.joblib'))
-    one_hot_encoder = joblib.load(os.path.join(model_dir, 'one_hot_encoder.joblib'))
-    feature_columns = joblib.load(os.path.join(model_dir, 'feature_columns.joblib'))
-    return model, label_encoder, one_hot_encoder, feature_columns
+def load_assets():
+    model = joblib.load('irrigation_model.joblib')
+    label_encoder = joblib.load('label_encoder.joblib')
+    return model, label_encoder
 
-model, le, encoder, feature_columns = load_artifacts()
+try:
+    model, label_encoder = load_assets()
+except Exception as e:
+    st.error(f"Error loading model files: {e}. Please ensure 'irrigation_model.joblib' and 'label_encoder.joblib' exist.")
+    st.stop()
 
-# --- 2. Define Input Fields (based on original df columns and transformations) ---
-# These values should reflect the ranges/categories observed in your training data.
-# For categorical features, we need the unique categories from the original 'df'
-# To populate the select boxes, we'll use example categories here. In a real app,
-# you'd ideally save these alongside your encoders.
+st.title("🌾 Irrigation Water Requirement Predictor")
+st.markdown("Predict the **Irrigation Need** for crops based on soil, environmental, and agricultural metrics.")
 
-# Numerical features ranges (example based on df.describe() or domain knowledge)
-numerical_features_info = {
-    'Soil_pH': {'min': 4.0, 'max': 9.0, 'default': 6.5},
-    'Soil_Moisture': {'min': 0.0, 'max': 100.0, 'default': 50.0},
-    'Organic_Carbon': {'min': 0.0, 'max': 5.0, 'default': 1.0},
-    'Electrical_Conductivity': {'min': 0.0, 'max': 5.0, 'default': 2.0},
-    'Temperature_C': {'min': 0.0, 'max': 40.0, 'default': 25.0},
-    'Humidity': {'min': 0.0, 'max': 100.0, 'default': 70.0},
-    'Rainfall_mm': {'min': 0.0, 'max': 300.0, 'default': 50.0},
-    'Sunlight_Hours': {'min': 0.0, 'max': 12.0, 'default': 6.0},
-    'Wind_Speed_kmh': {'min': 0.0, 'max': 50.0, 'default': 15.0},
-    'Field_Area_hectare': {'min': 0.0, 'max': 10.0, 'default': 5.0},
-    'Previous_Irrigation_mm': {'min': 0.0, 'max': 200.0, 'default': 30.0}
-}
+st.divider()
 
-# Categorical features and their unique values (example, get from original df)
-categorical_features_info = {
-    'Soil_Type': ['Clay', 'Loamy', 'Sandy', 'Silt'],
-    'Crop_Type': ['Wheat', 'Paddy', 'Maize', 'Sugarcane', 'Cotton'],
-    'Crop_Growth_Stage': ['Germination', 'Vegetative', 'Flowering', 'Fruiting'],
-    'Season': ['Summer', 'Monsoon', 'Winter'],
-    'Irrigation_Type': ['Drip', 'Sprinkler', 'Surface', 'Subsurface'],
-    'Water_Source': ['River', 'Well', 'Canal', 'Rainfed'],
-    'Mulching_Used': ['Yes', 'No'],
-    'Region': ['North', 'South', 'East', 'West']
-}
-
-# --- 3. Streamlit App Layout ---
-st.set_page_config(page_title="Irrigation Need Prediction", layout="wide")
-st.title("🌱 Irrigation Need Prediction App")
-st.markdown("Enter the environmental and crop parameters to predict the irrigation need.")
-
-# Create two columns for better layout
-col1, col2 = st.columns(2)
-
-user_input = {}
+# Organize Inputs into Tabs/Columns
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.header("Environmental & Crop Parameters")
-    for feature, info in numerical_features_info.items():
-        user_input[feature] = st.slider(f"**{feature.replace('_', ' ')}**", 
-                                        min_value=float(info['min']), 
-                                        max_value=float(info['max']),
-                                        value=float(info['default']),
-                                        step=0.1)
+    st.header("🌱 Soil Features")
+    soil_type = st.selectbox("Soil Type", ["Clay", "Silt", "Sandy"])
+    soil_ph = st.slider("Soil pH", 4.0, 10.0, 6.5, step=0.01)
+    soil_moisture = st.slider("Soil Moisture (%)", 0.0, 100.0, 30.0, step=0.1)
+    organic_carbon = st.number_input("Organic Carbon (%)", 0.0, 5.0, 0.8, step=0.01)
+    electrical_cond = st.number_input("Electrical Conductivity (dS/m)", 0.0, 10.0, 1.5, step=0.01)
 
 with col2:
-    st.header("Categorical Selections")
-    for feature, options in categorical_features_info.items():
-        user_input[feature] = st.selectbox(f"**{feature.replace('_', ' ')}**", options)
+    st.header("🌤️ Weather Metrics")
+    temperature = st.slider("Temperature (°C)", 0.0, 50.0, 28.0, step=0.1)
+    humidity = st.slider("Humidity (%)", 0.0, 100.0, 50.0, step=0.1)
+    rainfall = st.number_input("Rainfall (mm)", 0.0, 3000.0, 500.0, step=1.0)
+    sunlight_hours = st.slider("Sunlight Hours", 0.0, 16.0, 8.0, step=0.1)
+    wind_speed = st.number_input("Wind Speed (km/h)", 0.0, 50.0, 10.0, step=0.1)
 
-# --- 4. Prediction Logic ---
-if st.button("Predict Irrigation Need"):
-    # Create a DataFrame from user input
-    input_df = pd.DataFrame([user_input])
+with col3:
+    st.header("🌽 Crop & Field Settings")
+    crop_type = st.selectbox("Crop Type", ["Wheat", "Maize", "Cotton"])
+    crop_stage = st.selectbox("Crop Growth Stage", ["Sowing", "Vegetative", "Flowering", "Harvest"])
+    season = st.selectbox("Season", ["Rabi", "Kharif", "Zaid"])
+    irrigation_type = st.selectbox("Irrigation Type", ["Rainfed", "Canal", "Drip"])
+    water_source = st.selectbox("Water Source", ["Reservoir", "Groundwater", "River"])
+    region = st.selectbox("Region", ["North", "South", "Central"])
+    mulching = st.selectbox("Mulching Used", ["Yes", "No"])
+    field_area = st.number_input("Field Area (Hectare)", 0.1, 100.0, 5.0, step=0.1)
+    prev_irrigation = st.number_input("Previous Irrigation (mm)", 0.0, 200.0, 20.0, step=0.1)
 
-    # Separate numerical and categorical features
-    input_numerical = input_df[list(numerical_features_info.keys())]
-    input_categorical = input_df[list(categorical_features_info.keys())]
+# Prediction Logic
+st.divider()
 
-    # Apply OneHotEncoder to categorical features
-    encoded_input_features = encoder.transform(input_categorical)
-    encoded_input_df = pd.DataFrame(encoded_input_features, columns=encoder.get_feature_names_out(list(categorical_features_info.keys())))
-
-    # Concatenate numerical and encoded categorical features
-    processed_input = pd.concat([input_numerical, encoded_input_df], axis=1)
-
-    # Ensure column order matches the training data
-    # Important: This assumes 'feature_columns' saved from training matches the order expected.
-    # If 'Mulching_Used_Yes' or 'Irrigation_Need_Medium' were dropped during training for df_final_reduced,
-    # but not explicitly dropped in this Streamlit app's feature_columns logic, it needs careful handling.
-    # For this current scenario, we did NOT drop columns, so feature_columns should match.
+if st.button("🔮 Predict Irrigation Need", type="primary", use_container_width=True):
+    # Create DataFrame from User Inputs matching training features
+    input_data = pd.DataFrame([{
+        'Soil_Type': soil_type,
+        'Soil_pH': soil_ph,
+        'Soil_Moisture': soil_moisture,
+        'Organic_Carbon': organic_carbon,
+        'Electrical_Conductivity': electrical_cond,
+        'Temperature_C': temperature,
+        'Humidity': humidity,
+        'Rainfall_mm': rainfall,
+        'Sunlight_Hours': sunlight_hours,
+        'Wind_Speed_kmh': wind_speed,
+        'Crop_Type': crop_type,
+        'Crop_Growth_Stage': crop_stage,
+        'Season': season,
+        'Irrigation_Type': irrigation_type,
+        'Water_Source': water_source,
+        'Field_Area_hectare': field_area,
+        'Mulching_Used': mulching,
+        'Previous_Irrigation_mm': prev_irrigation,
+        'Region': region
+    }])
     
-    # Reindex the processed input to match the feature_columns used during training
-    processed_input = processed_input.reindex(columns=feature_columns, fill_value=0)
+    # Perform Inference
+    prediction_encoded = model.predict(input_data)[0]
+    prediction_label = label_encoder.inverse_transform([prediction_encoded])[0]
+    probabilities = model.predict_proba(input_data)[0]
 
-    # Make prediction
-    prediction_encoded = model.predict(processed_input)
-    prediction_label = le.inverse_transform(prediction_encoded)
+    # Display Results
+    st.subheader("Prediction Result")
+    
+    if prediction_label == "Low":
+        st.success(f"**Predicted Irrigation Need:** {prediction_label}")
+    elif prediction_label == "Medium":
+        st.warning(f"**Predicted Irrigation Need:** {prediction_label}")
+    else:
+        st.error(f"**Predicted Irrigation Need:** {prediction_label}")
 
-    st.subheader("Prediction Result:")
-    st.success(f"The predicted Irrigation Need is: **{prediction_label[0]}**")
+    # Show Prediction Probabilities
+    classes = label_encoder.classes_
+    prob_df = pd.DataFrame({'Irrigation Need': classes, 'Probability': probabilities})
+    st.bar_chart(prob_df.set_index('Irrigation Need'))
