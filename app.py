@@ -1,119 +1,131 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import xgboost as xgb
+import os
+import numpy as np
 
-# ==========================================
-# 1. LOAD EXPORTED ARTIFACTS
-# ==========================================
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Irrigation Need Prediction App 💧",
+    page_icon="🌱",
+    layout="centered",
+    initial_sidebar_state="expanded",
+)
+
+# --- Load Model Artifacts ---
+# Define the directory where artifacts are saved
+model_dir = 'model_artifacts'
+
 @st.cache_resource
-def load_artifacts():
-    model = joblib.load('irrigation_model.joblib')
-    le = joblib.load('label_encoder.joblib')
-    ohe = joblib.load('one_hot_encoder.joblib')
-    feature_columns = joblib.load('feature_columns.joblib')
-    return model, le, ohe, feature_columns
+def load_model_artifacts():
+    try:
+        model = joblib.load('irrigation_model.joblib')
+        le = joblib.load('label_encoder.joblib')
+        ohe = joblib.load('one_hot_encoder.joblib')
+        feature_columns = joblib.load('feature_columns.joblib')
+        return model, le, encoder, feature_columns
+    except FileNotFoundError:
+        st.error("Model artifacts not found. Please ensure 'model_artifacts' directory and its contents are in the same directory as this app.")
+        st.stop()
 
-model, label_encoder, one_hot_encoder, feature_columns = load_artifacts()
+model, le, encoder, feature_columns = load_model_artifacts()
 
-# ==========================================
-# 2. STREAMLIT UI & USER INPUTS
-# ==========================================
-st.title("Irrigation Water Requirement Prediction")
-st.write("Enter the environmental and crop parameters below to predict irrigation needs.")
+# --- Title and Description ---
+st.title("Irrigation Need Prediction 💧")
+st.markdown("This app predicts the irrigation need (High, Medium, Low) for a crop based on various environmental and soil parameters.")
+st.markdown("--- ")
 
-# Create columns for a cleaner UI layout
+# --- Input Features ---
+st.header("Environmental & Soil Parameters")
+
+# Numerical Inputs
+# You might want to get min/max/default values from your training data for better slider ranges
+# For now, using reasonable defaults
+
 col1, col2 = st.columns(2)
-
 with col1:
-    st.subheader("Categorical Features")
-    soil_type = st.selectbox("Soil Type", ["Clay", "Silt", "Sandy"])
-    crop_type = st.selectbox("Crop Type", ["Wheat", "Maize", "Cotton"])
-    growth_stage = st.selectbox("Crop Growth Stage", ["Sowing", "Vegetative", "Flowering", "Harvest"])
-    season = st.selectbox("Season", ["Kharif", "Rabi", "Zaid"])
-    irrigation_type = st.selectbox("Irrigation Type", ["Rainfed", "Canal", "Drip"])
-    water_source = st.selectbox("Water Source", ["Reservoir", "Groundwater", "River"])
-    region = st.selectbox("Region", ["North", "Central", "South"])
-    mulching_used = st.selectbox("Mulching Used", ["Yes", "No"])
+    soil_ph = st.slider("Soil pH", min_value=3.0, max_value=9.0, value=6.5, step=0.1)
+    soil_moisture = st.slider("Soil Moisture (%) ", min_value=0.0, max_value=100.0, value=50.0, step=0.1)
+    organic_carbon = st.slider("Organic Carbon (%) ", min_value=0.0, max_value=5.0, value=1.0, step=0.01)
+    electrical_conductivity = st.slider("Electrical Conductivity (dS/m)", min_value=0.0, max_value=10.0, value=2.0, step=0.01)
+    temperature_c = st.slider("Temperature (°C)", min_value=-10.0, max_value=50.0, value=25.0, step=0.1)
+    humidity = st.slider("Humidity (%)", min_value=0.0, max_value=100.0, value=70.0, step=0.1)
 
 with col2:
-    st.subheader("Numerical Features")
-    soil_ph = st.number_input("Soil pH", value=6.5)
-    soil_moisture = st.number_input("Soil Moisture (%)", value=30.0)
-    organic_carbon = st.number_input("Organic Carbon", value=1.0)
-    electrical_conductivity = st.number_input("Electrical Conductivity", value=1.5)
-    temperature = st.number_input("Temperature (°C)", value=25.0)
-    humidity = st.number_input("Humidity (%)", value=50.0)
-    rainfall = st.number_input("Rainfall (mm)", value=500.0)
-    sunlight = st.number_input("Sunlight Hours", value=8.0)
-    wind_speed = st.number_input("Wind Speed (km/h)", value=10.0)
-    field_area = st.number_input("Field Area (hectare)", value=5.0)
-    prev_irrigation = st.number_input("Previous Irrigation (mm)", value=20.0)
+    rainfall_mm = st.slider("Rainfall (mm)", min_value=0.0, max_value=300.0, value=50.0, step=0.1)
+    sunlight_hours = st.slider("Sunlight Hours", min_value=0.0, max_value=15.0, value=8.0, step=0.1)
+    wind_speed_kmh = st.slider("Wind Speed (km/h)", min_value=0.0, max_value=50.0, value=15.0, step=0.1)
+    field_area_hectare = st.slider("Field Area (hectare)", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
+    previous_irrigation_mm = st.slider("Previous Irrigation (mm)", min_value=0.0, max_value=200.0, value=20.0, step=0.1)
 
-# ==========================================
-# 3. PREDICTION PIPELINE
-# ==========================================
-if st.button("Predict Irrigation Need"):
+
+st.markdown("--- ")
+st.header("Crop & Management Details")
+
+col3, col4 = st.columns(2)
+with col3:
+    soil_type = st.selectbox("Soil Type", ['Clay', 'Loamy', 'Sandy', 'Silt'])
+    crop_type = st.selectbox("Crop Type", ['Wheat', 'Maize', 'Paddy', 'Sugarcane', 'Cotton', 'Barley'])
+    crop_growth_stage = st.selectbox("Crop Growth Stage", ['Vegetative', 'Flowering', 'Fruiting'])
+    season = st.selectbox("Season", ['Monsoon', 'Winter', 'Summer'])
+
+with col4:
+    irrigation_type = st.selectbox("Irrigation Type", ['Drip', 'Sprinkler', 'Flood'])
+    water_source = st.selectbox("Water Source", ['River', 'Well', 'Canal'])
+    mulching_used = st.selectbox("Mulching Used", ['Yes', 'No'])
+    region = st.selectbox("Region", ['North', 'South', 'East', 'West'])
+
+# --- Create DataFrame for Prediction ---
+input_data = {
+    'Soil_Type': [soil_type],
+    'Soil_pH': [soil_ph],
+    'Soil_Moisture': [soil_moisture],
+    'Organic_Carbon': [organic_carbon],
+    'Electrical_Conductivity': [electrical_conductivity],
+    'Temperature_C': [temperature_c],
+    'Humidity': [humidity],
+    'Rainfall_mm': [rainfall_mm],
+    'Sunlight_Hours': [sunlight_hours],
+    'Wind_Speed_kmh': [wind_speed_kmh],
+    'Crop_Type': [crop_type],
+    'Crop_Growth_Stage': [crop_growth_stage],
+    'Season': [season],
+    'Irrigation_Type': [irrigation_type],
+    'Water_Source': [water_source],
+    'Field_Area_hectare': [field_area_hectare],
+    'Mulching_Used': [mulching_used],
+    'Previous_Irrigation_mm': [previous_irrigation_mm],
+    'Region': [region],
+}
+
+input_df = pd.DataFrame(input_data)
+
+# --- Preprocessing Input Data ---
+# Separate numerical and categorical columns from the input
+numerical_cols = input_df.select_dtypes(include=np.number).columns
+categorical_cols = input_df.select_dtypes(include='object').columns
+
+# Apply OneHotEncoder to categorical features
+encoded_features_input = encoder.transform(input_df[categorical_cols])
+encoded_df_input = pd.DataFrame(encoded_features_input, columns=encoder.get_feature_names_out(categorical_cols))
+
+# Drop original categorical columns and concatenate with encoded ones
+input_processed = input_df[numerical_cols].reset_index(drop=True)
+input_processed = pd.concat([input_processed, encoded_df_input], axis=1)
+
+# Ensure all columns from training are present and in the correct order
+# Add missing columns with 0, drop extra columns
+final_input = pd.DataFrame(columns=feature_columns)
+final_input = pd.concat([final_input, input_processed], ignore_index=True)
+final_input = final_input.fillna(0) # Fill any new columns with 0
+final_input = final_input[feature_columns] # Ensure order and drop extra columns
+
+
+# --- Prediction Button ---
+st.markdown("--- ")
+if st.button("Predict Irrigation Need 🌱"): 
+    prediction_encoded = model.predict(final_input)
+    prediction_label = le.inverse_transform(prediction_encoded)
     
-    # 3.1. Create a DataFrame from the user inputs
-    input_data = {
-        'Soil_Type': [soil_type],
-        'Soil_pH': [soil_ph],
-        'Soil_Moisture': [soil_moisture],
-        'Organic_Carbon': [organic_carbon],
-        'Electrical_Conductivity': [electrical_conductivity],
-        'Temperature_C': [temperature],
-        'Humidity': [humidity],
-        'Rainfall_mm': [rainfall],
-        'Sunlight_Hours': [sunlight],
-        'Wind_Speed_kmh': [wind_speed],
-        'Crop_Type': [crop_type],
-        'Crop_Growth_Stage': [growth_stage],
-        'Season': [season],
-        'Irrigation_Type': [irrigation_type],
-        'Water_Source': [water_source],
-        'Field_Area_hectare': [field_area],
-        'Mulching_Used': [mulching_used],
-        'Previous_Irrigation_mm': [prev_irrigation],
-        'Region': [region]
-    }
-    
-    input_df = pd.DataFrame(input_data)
-    
-    # Separate columns exactly as they were likely split during training[cite: 2]
-    categorical_cols = ['Soil_Type', 'Crop_Type', 'Crop_Growth_Stage', 'Season', 
-                        'Irrigation_Type', 'Water_Source', 'Mulching_Used', 'Region']
-    numerical_cols = ['Soil_pH', 'Soil_Moisture', 'Organic_Carbon', 'Electrical_Conductivity', 
-                      'Temperature_C', 'Humidity', 'Rainfall_mm', 'Sunlight_Hours', 
-                      'Wind_Speed_kmh', 'Field_Area_hectare', 'Previous_Irrigation_mm']
-    
-    # 3.2. Apply One-Hot Encoding to categorical columns
-    encoded_cats = one_hot_encoder.transform(input_df[categorical_cols])
-    
-    # Check if the output is a sparse matrix and convert to dense array if necessary
-    if hasattr(encoded_cats, "toarray"):
-        encoded_cats = encoded_cats.toarray()
-        
-    encoded_cats_df = pd.DataFrame(
-        encoded_cats, 
-        columns=one_hot_encoder.get_feature_names_out(categorical_cols)
-    )
-    
-    # 3.3. Concatenate numerical and encoded categorical data
-    num_df = input_df[numerical_cols].reset_index(drop=True)
-    processed_df = pd.concat([num_df, encoded_cats_df], axis=1)
-    
-    # 3.4. FIX THE DMATRIX ERROR: Reindex the dataframe to match the training features
-    # This ensures that all columns expected by XGBoost are present in the exact same order.
-    # Any missing columns (e.g., a specific category not chosen) are filled with 0.
-    final_df = processed_df.reindex(columns=feature_columns, fill_value=0)
-    
-    # 3.5. Make Prediction
-    try:
-        prediction_encoded = model.predict(final_df)
-        prediction_label = label_encoder.inverse_transform(prediction_encoded)
-        
-        st.success(f"**Predicted Irrigation Need:** {prediction_label[0]}")
-        
-    except Exception as e:
-        st.error(f"An error occurred during prediction: {e}")
+    st.success(f"Predicted Irrigation Need: **{prediction_label[0]}**")
+    st.balloons()
