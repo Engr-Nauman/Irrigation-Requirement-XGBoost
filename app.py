@@ -1,6 +1,3 @@
-```python
-# app.py
-
 import streamlit as st
 import pandas as pd
 import joblib
@@ -131,8 +128,4 @@ if st.button("Predict Irrigation Need 🌱"):
     st.success(f"Predicted Irrigation Need: **{prediction_label[0]}**")
     st.balloons()
 
-st.markdown("---")
-st.caption("Developed by Your Name/Team")
 
-
-```
