@@ -20,10 +20,10 @@ model_dir = 'model_artifacts'
 def load_model_artifacts():
     try:
         model = joblib.load('irrigation_model.joblib')
-        le = joblib.load('label_encoder.joblib')
+        labenc = joblib.load('label_encoder.joblib')
         ohe = joblib.load('one_hot_encoder.joblib')
         feature_columns = joblib.load('feature_columns.joblib')
-        return model, le, ohe, feature_columns
+        return model, labenc, ohe, feature_columns
     except FileNotFoundError:
         st.error("Model artifacts not found. Please ensure 'model_artifacts' directory and its contents are in the same directory as this app.")
         st.stop()
