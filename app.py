@@ -114,6 +114,10 @@ input_processed = pd.concat([input_processed, encoded_df_input], axis=1)
 # Ensure all columns from training are present and in the correct order
 # Add missing columns with 0, drop extra columns
 final_input = pd.DataFrame(0, index=[0], columns=feature_columns) # Initialize with all expected columns and 0s
+
+irrigation_ohe_cols = [col for col in final_input.columns if col.startswith('Irrigation_Need_')]
+final_input = final_input.drop(columns=irrigation_ohe_cols)
+
 for col in input_processed.columns:
     if col in final_input.columns:
         final_input[col] = input_processed[col].iloc[0] # Populate with user input
