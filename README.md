@@ -28,7 +28,7 @@ After training, the following model artifacts are saved in the `model_artifacts/
 
 These artifacts enable the deployment of the model without retraining and ensure that new input data is processed identically to the training data.
 
-## Streamlit Application (`model.py`)
+## Streamlit Application (`app.py`)
 
 This repository also includes a Streamlit application (`model.py`) that provides an interactive web interface for making predictions using the exported model. The app allows users to input various environmental and crop parameters via sliders and select boxes, and then instantly get a prediction for the irrigation need.
 
@@ -50,9 +50,16 @@ This repository also includes a Streamlit application (`model.py`) that provides
 
 ### Deployment to Streamlit Community Cloud
 
-You can easily deploy this Streamlit application to the [Streamlit Community Cloud](https://streamlit.io/cloud) by connecting it to this GitHub repository. Ensure that:
+You can easily deploy this Streamlit application to the [Streamlit Community Cloud](https://streamlit.io/cloud) by connecting it to this GitHub
+repository. Ensure that:
 
 *   Your `app.py` is in the root directory or a clearly specified sub-directory.
 *   The `model_artifacts` folder and its contents are committed to the repository.
 *   A `requirements.txt` file listing all dependencies (streamlit, pandas, scikit-learn, xgboost, joblib) is present in the repository.
 
+### Demo App
+https://irrigation-requirement-xgboost-en.streamlit.app/
+Click on the link to test the Demo App! Cheers
+
+#### Development Credits
+Armaan
