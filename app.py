@@ -13,9 +13,6 @@ st.set_page_config(
 )
 
 # --- Load Model Artifacts ---
-# Define the directory where artifacts are saved
-model_dir = 'model_artifacts'
-
 @st.cache_resource
 def load_model_artifacts():
     try:
@@ -28,7 +25,7 @@ def load_model_artifacts():
         st.error("Model artifacts not found. Please ensure 'model_artifacts' directory and its contents are in the same directory as this app.")
         st.stop()
 
-model, le, encoder, feature_columns = load_model_artifacts()
+model, labelenc, encoder, feature_columns = load_model_artifacts()
 
 # --- Title and Description ---
 st.title("Irrigation Need Prediction 💧")
@@ -125,7 +122,7 @@ final_input = final_input[feature_columns] # Ensure order and drop extra columns
 st.markdown("--- ")
 if st.button("Predict Irrigation Need 🌱"): 
     prediction_encoded = model.predict(final_input)
-    prediction_label = le.inverse_transform(prediction_encoded)
+    prediction_label = labelenc.inverse_transform(prediction_encoded)
     
     st.success(f"Predicted Irrigation Need: **{prediction_label[0]}**")
     st.balloons()
