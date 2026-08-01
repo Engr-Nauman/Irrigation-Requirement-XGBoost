@@ -23,7 +23,7 @@ def load_model_artifacts():
         le = joblib.load('label_encoder.joblib')
         ohe = joblib.load('one_hot_encoder.joblib')
         feature_columns = joblib.load('feature_columns.joblib')
-        return model, le, encoder, feature_columns
+        return model, le, ohe, feature_columns
     except FileNotFoundError:
         st.error("Model artifacts not found. Please ensure 'model_artifacts' directory and its contents are in the same directory as this app.")
         st.stop()
